@@ -70,9 +70,19 @@ class Blockchain {
 					block.previousBlockHash = self.chain[self.height].hash;
 				}
 				block.hash = SHA256(JSON.stringify(block)).toString();
+
 				this.chain.push(block);
 				this.height = self.height + 1;
-				resolve();
+				try {
+					const validationErrors = await this.validateChain();
+					if (!validationErrors.length) {
+						resolve(block);
+					} else {
+						reject(validationErrors);
+					}
+				} catch (err) {
+					reject(err);
+				}
 			} catch (err) {
 				reject(err);
 			}
@@ -89,7 +99,7 @@ class Blockchain {
      */
 	requestMessageOwnershipVerification(address) {
 		return new Promise((resolve) => {
-			resolve(JSON.stringify({ [address]: `${new Date().getTime().toString().slice(0, -3)}:starRegistry` }));
+			resolve(`${address}:${new Date().getTime().toString().slice(0, -3)}:starRegistry`);
 		});
 	}
 
@@ -113,22 +123,23 @@ class Blockchain {
 	submitStar(address, message, signature, star) {
 		let self = this;
 		return new Promise(async (resolve, reject) => {
-			// CLEAN THIS UP BEFORE SUBMITTING
-			// let testMessage = JSON.stringify({ testMessage: `${new Date().getTime().toString().slice(0, -3)}:starRegistry` });
-			// console.log(testMessage.split(':')[1].substring(1));
-			let messageTime = parseInt(message.split(':')[1].substring(1));
+			let messageTime = parseInt(message.split(':')[1]);
 			let currentTime = parseInt(new Date().getTime().toString().slice(0, -3));
 			const fiveMinuteTimeStamp = 5 * 60 * 1000;
-			console.log(fiveMinuteTimeStamp);
 			// Check if the time elapsed is less than 5 minutes (compare the time in the message and currentTime)
 			let timeElapsed = currentTime - messageTime;
-			console.log({ messageTime });
-			console.log({ currentTime });
-			console.log({ timeElapsed });
 			if (timeElapsed < fiveMinuteTimeStamp && bitcoinMessage.verify(message, address, signature)) {
-				let newBlock = new BlockClass(star);
-				this._addBlock(newBlock);
-				resolve(newBlock);
+				let starData = { owner: address, star };
+				let newBlock = new BlockClass.Block(starData);
+				try {
+					await this._addBlock(newBlock);
+					resolve(newBlock);
+				} catch (err) {
+					reject({
+						msg: 'There was an error validating the chain.',
+						errors: err
+					});
+				}
 			} else {
 				reject('There as an error');
 			}
@@ -175,7 +186,20 @@ class Blockchain {
 	getStarsByWalletAddress(address) {
 		let self = this;
 		let stars = [];
-		return new Promise((resolve, reject) => {});
+		return new Promise(async (resolve, reject) => {
+			for (const block of self.chain) {
+				try {
+					let blockData = await block.getBData();
+					if (blockData.owner === address) {
+						stars.push(blockData);
+					}
+				} catch (err) {
+					console.log('No blocks found');
+				}
+			}
+
+			resolve(stars);
+		});
 	}
 
 	/**
@@ -187,7 +211,27 @@ class Blockchain {
 	validateChain() {
 		let self = this;
 		let errorLog = [];
-		return new Promise(async (resolve, reject) => {});
+		return new Promise(async (resolve, reject) => {
+			for (let i = 0; i < self.chain.length; i++) {
+				if (self.chain[i].height < 1) {
+					resolve(errorLog);
+				} else {
+					if (self.chain[i - 1].hash !== self.chain[i].previousBlockHash) {
+						errorLog.push({
+							error: 'Hash of previous block does not match',
+							block: self.chain[i],
+							prevBlock: self.chain[i - 1]
+						});
+					}
+					try {
+						await self.chain[i].validate();
+					} catch (err) {
+						errorLog.push({ error: 'Block validation failed', block: self.chain[i] });
+					}
+				}
+			}
+			resolve(errorLog);
+		});
 	}
 }
 

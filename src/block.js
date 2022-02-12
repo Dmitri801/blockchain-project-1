@@ -39,15 +39,17 @@ class Block {
 			// Save in auxiliary variable the current block hash
 			let self = this;
 			// Recalculate the hash of the Block
-			let blockHash = SHA256(JSON.stringify(this)).toString();
+			let previousHash = self.hash;
+			self.hash = null;
+			let blockHash = SHA256(JSON.stringify(self)).toString();
 			// Comparing if the hashes changed
-			if (self.hash !== blockHash) {
+			if (previousHash !== blockHash) {
 				// Returning the Block is not valid
-				reject('Invalid block');
+				reject(`This block is not valid ${this}`);
 			}
 			// Returning the Block is valid
-
-			resolve(this);
+			self.hash = blockHash;
+			resolve(true);
 		});
 	}
 
@@ -70,8 +72,8 @@ class Block {
 		let parsedData = JSON.parse(decodedData);
 		// Resolve with the data if the object isn't the Genesis block
 		return new Promise((resolve, reject) => {
-			if (parsedData !== { data: 'Genesis Block' }) {
-				resolve();
+			if (parsedData.data !== 'Genesis Block') {
+				resolve(parsedData);
 			}
 
 			reject();
