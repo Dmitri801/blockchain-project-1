@@ -125,7 +125,7 @@ class Blockchain {
 		return new Promise(async (resolve, reject) => {
 			let messageTime = parseInt(message.split(':')[1]);
 			let currentTime = parseInt(new Date().getTime().toString().slice(0, -3));
-			const fiveMinuteTimeStamp = 5 * 60 * 1000;
+			const fiveMinuteTimeStamp = 5 * 60;
 			// Check if the time elapsed is less than 5 minutes (compare the time in the message and currentTime)
 			let timeElapsed = currentTime - messageTime;
 			if (timeElapsed < fiveMinuteTimeStamp && bitcoinMessage.verify(message, address, signature)) {
@@ -213,21 +213,17 @@ class Blockchain {
 		let errorLog = [];
 		return new Promise(async (resolve, reject) => {
 			for (let i = 0; i < self.chain.length; i++) {
-				if (self.chain[i].height < 1) {
-					resolve(errorLog);
-				} else {
-					if (self.chain[i - 1].hash !== self.chain[i].previousBlockHash) {
-						errorLog.push({
-							error: 'Hash of previous block does not match',
-							block: self.chain[i],
-							prevBlock: self.chain[i - 1]
-						});
-					}
-					try {
-						await self.chain[i].validate();
-					} catch (err) {
-						errorLog.push({ error: 'Block validation failed', block: self.chain[i] });
-					}
+				if (i > 0 && self.chain[i - 1].hash !== self.chain[i].previousBlockHash) {
+					errorLog.push({
+						error: 'Hash of previous block does not match',
+						block: self.chain[i],
+						prevBlock: self.chain[i - 1]
+					});
+				}
+				try {
+					await self.chain[i].validate();
+				} catch (err) {
+					errorLog.push({ error: 'Block validation failed', block: self.chain[i] });
 				}
 			}
 			resolve(errorLog);

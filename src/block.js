@@ -48,7 +48,7 @@ class Block {
 				reject(`This block is not valid ${this}`);
 			}
 			// Returning the Block is valid
-			self.hash = blockHash;
+			self.hash = previousHash;
 			resolve(true);
 		});
 	}
